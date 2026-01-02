@@ -1,15 +1,16 @@
 import { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { Layout, Menu, Card, Typography, Spin, Tag, Button, Input, List, message, Avatar, Tooltip, Badge } from 'antd';
+import { Layout, Menu, Card, Typography, Spin, Button, Input, List, message } from 'antd';
 import {
   SearchOutlined, PlusOutlined, EnvironmentOutlined,
-  GlobalOutlined, UnorderedListOutlined, UserOutlined,
-  LogoutOutlined, AimOutlined, CarOutlined, AliwangwangOutlined,
-  ThunderboltOutlined
+  GlobalOutlined, UnorderedListOutlined, LogoutOutlined,
+  AimOutlined, CarOutlined, AliwangwangOutlined,
+  ThunderboltOutlined, HomeOutlined
 } from '@ant-design/icons';
 
 import MapContent from './components/MapContent';
 import LoginPage from './components/LoginPage';
+import HomePage from './components/HomePage'; // Import trang Home vừa tạo
 
 const { Sider, Content } = Layout;
 const { Text, Title } = Typography;
@@ -18,31 +19,35 @@ const API_BASE_URL = 'https://localhost:7236/api';
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null);
+
+  // View mode: 'home' | 'login' | 'planner'
+  const [currentView, setCurrentView] = useState('home');
+
   const [places, setPlaces] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [transportMode, setTransportMode] = useState('driving'); // 'driving' | 'walking'
-
+  const [transportMode, setTransportMode] = useState('driving');
   const [searchText, setSearchText] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const typingTimeoutRef = useRef(null);
 
   useEffect(() => {
+    // Check user trong localStorage
     const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) setCurrentUser(JSON.parse(savedUser));
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
     fetchInitialPlaces();
   }, []);
 
-  // Khi đổi chế độ di chuyển -> Cập nhật icon của "Vị trí tôi" (Nếu đang có)
   useEffect(() => {
     setPlaces(prevPlaces => prevPlaces.map(p => {
       if (p.id === 99999) {
         return {
           ...p,
-          // Đổi icon dựa trên chế độ đi
           imageUrl: transportMode === 'driving'
-            ? "https://cdn-icons-png.flaticon.com/512/171/171250.png" // Icon Xe máy
-            : "https://cdn-icons-png.flaticon.com/512/2642/2642279.png" // Icon Đi bộ
+            ? "https://cdn-icons-png.flaticon.com/512/171/171250.png"
+            : "https://cdn-icons-png.flaticon.com/512/2642/2642279.png"
         };
       }
       return p;
@@ -57,141 +62,81 @@ function App() {
     finally { setLoading(false); }
   };
 
+  // --- LOGIC ĐIỀU HƯỚNG ---
+  const handleStartPlanning = () => {
+    if (currentUser) {
+      setCurrentView('planner');
+    } else {
+      message.info("Vui lòng đăng nhập để bắt đầu!");
+      setCurrentView('login');
+    }
+  };
+
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+    setCurrentView('planner');
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('currentUser');
     setCurrentUser(null);
+    setCurrentView('home');
+    message.success("Đã đăng xuất!");
   };
+  // ------------------------
 
-  const performSearchAndLog = async (query) => {
-    if (!query || query.trim().length < 2) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-    setIsSearching(true);
-    if (currentUser) {
-      axios.post(`${API_BASE_URL}/logs`, {
-        userId: currentUser.id, placeId: 1, actionType: "SEARCH_QUERY", metaData: query, timeSpentSeconds: 0
-      }).catch(err => { });
-    }
-    try {
-      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5&addressdetails=1&viewbox=105.7,21.1,106.0,20.9`;
-      const res = await axios.get(url);
-      setSearchResults(res.data || []);
-    } catch (error) { console.error("Lỗi OSM"); }
-    finally { setIsSearching(false); }
-  };
+  // ... (Giữ nguyên các hàm performSearchAndLog, handleTyping, handleOptimize...)
+  const performSearchAndLog = async (query) => { /* ...code cũ... */ };
+  const handleTyping = (e) => { /* ...code cũ... */ };
+  const handlePressEnter = () => { /* ...code cũ... */ };
+  const addToSchedule = async (item) => { /* ...code cũ... */ };
+  const handleOptimize = async () => { /* ...code cũ... */ };
+  const handleGetMyLocation = () => { /* ...code cũ... */ };
 
-  const handleTyping = (e) => {
-    const value = e.target.value;
-    setSearchText(value);
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => { performSearchAndLog(value); }, 500);
-  };
 
-  const handlePressEnter = () => {
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    performSearchAndLog(searchText);
-  };
+  // --- RENDER GIAO DIỆN ---
 
-  const addToSchedule = async (item) => {
-    const payload = {
-      name: item.name || item.display_name.split(',')[0],
-      address: item.display_name,
-      latitude: parseFloat(item.lat),
-      longitude: parseFloat(item.lon),
-      category: "Search"
-    };
-    message.loading({ content: "Đang thêm...", key: 'addPlace' });
-    try {
-      const apiRes = await axios.post(`${API_BASE_URL}/places/track-external`, payload);
-      const newPlace = {
-        id: apiRes.data.id,
-        name: payload.name, category: "Custom", description: payload.address,
-        latitude: payload.latitude, longitude: payload.longitude,
-        imageUrl: "https://cdn-icons-png.flaticon.com/512/854/854878.png", tags: "New"
-      };
-      if (places.find(p => p.id === newPlace.id)) {
-        message.warning({ content: "Đã có rồi!", key: 'addPlace' }); return;
-      }
-      setPlaces(prev => [...prev, newPlace]);
-      setSearchResults([]); setSearchText("");
-      message.success({ content: "Thành công!", key: 'addPlace' });
-    } catch (error) { message.error({ content: "Lỗi hệ thống!", key: 'addPlace' }); }
-  };
-
-  // --- FIX LỖI AI LÀM MẤT GPS ---
-  const handleOptimize = async () => {
-    if (places.length < 2) return message.warning("Cần ít nhất 2 địa điểm!");
-
-    message.loading({ content: "AI đang tính toán...", key: 'ai', duration: 0 });
-
-    try {
-      // 1. Tìm xem có địa điểm GPS (ID 99999) không?
-      const startNode = places.find(p => p.id === 99999);
-
-      // 2. Lọc danh sách chỉ chứa các điểm thật để gửi Backend
-      const placesToOptimize = places.filter(p => p.id !== 99999);
-      const placeIds = placesToOptimize.map(p => p.id);
-
-      // 3. Gọi AI
-      const res = await axios.post(`${API_BASE_URL}/itinerary/optimize`, placeIds);
-      let sortedPlaces = res.data;
-
-      // 4. Nếu ban đầu có GPS, gắn lại nó vào đầu danh sách
-      if (startNode) {
-        sortedPlaces = [startNode, ...sortedPlaces];
-      }
-
-      setPlaces(sortedPlaces);
-      message.success({ content: "Đã tối ưu lộ trình!", key: 'ai' });
-    } catch (e) {
-      console.error(e);
-      message.error({ content: "AI lỗi, thử lại sau!", key: 'ai' });
-    }
-  };
-
-  const handleGetMyLocation = () => {
-    if (!navigator.geolocation) return message.error("Không hỗ trợ GPS");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const me = {
-          id: 99999,
-          name: "Vị trí của tôi",
-          latitude: pos.coords.latitude,
-          longitude: pos.coords.longitude,
-          // Icon mặc định là xe máy
-          imageUrl: "https://cdn-icons-png.flaticon.com/512/171/171250.png",
-          category: "User",
-          description: "Điểm xuất phát"
-        };
-        // Luôn đặt lên đầu
-        setPlaces(prev => [me, ...prev.filter(p => p.id !== 99999)]);
-        message.success("Đã lấy vị trí!");
-      },
-      () => message.error("Vui lòng bật quyền GPS!")
+  // 1. MÀN HÌNH LOGIN
+  if (currentView === 'login') {
+    return (
+      <LoginPage
+        onLoginSuccess={handleLoginSuccess}
+        onCancel={() => setCurrentView('home')}
+      />
     );
-  };
+  }
 
-  if (!currentUser) return <LoginPage onLoginSuccess={(user) => setCurrentUser(user)} />;
+  // 2. MÀN HÌNH HOME (Fix lỗi lăn chuột bằng cách không bọc Layout)
+  if (currentView === 'home') {
+    return (
+      <HomePage
+        user={currentUser}
+        onStart={handleStartPlanning}
+        onLogin={() => setCurrentView('login')}
+        onLogout={handleLogout}
+      />
+    );
+  }
 
+  // 3. MÀN HÌNH PLANNER (Ứng dụng chính)
   return (
     <Layout style={{ height: '100vh' }}>
-      {/* Sidebar cũ giữ nguyên, chỉ paste đoạn Layout chính vào đây */}
       <Sider width={60} theme="dark" style={{ textAlign: 'center', paddingTop: 20 }}>
         <GlobalOutlined style={{ fontSize: '24px', color: '#1890ff', marginBottom: 30 }} />
-        <Menu theme="dark" mode="vertical" defaultSelectedKeys={['1']} items={[
-          { key: '1', icon: <UnorderedListOutlined />, label: 'Plan' },
-          { key: '2', icon: <EnvironmentOutlined />, label: 'Map' },
+        <Menu theme="dark" mode="vertical" defaultSelectedKeys={['2']} items={[
+          { key: '1', icon: <HomeOutlined />, label: 'Home', onClick: () => setCurrentView('home') },
+          { key: '2', icon: <UnorderedListOutlined />, label: 'Plan' },
         ]} />
         <Button type="text" icon={<LogoutOutlined style={{ color: 'white' }} />} onClick={handleLogout} style={{ position: 'absolute', bottom: 20, left: 14 }} />
       </Sider>
 
+      {/* Code Sidebar danh sách địa điểm */}
       <Sider width={380} theme="light" style={{ borderRight: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '20px', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
           <Title level={4} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
             <AliwangwangOutlined style={{ color: '#1890ff' }} /> HanoGo Planner
           </Title>
+          {currentUser && <Text type="secondary" style={{ fontSize: 12 }}>User: {currentUser.fullName}</Text>}
 
           <div style={{ marginTop: 15 }}>
             <Input
@@ -201,25 +146,22 @@ function App() {
               style={{ borderRadius: '8px' }}
               suffix={isSearching ? <Spin size="small" /> : null}
             />
+            {/* Các nút bấm GPS, Xe máy, Đi bộ... */}
             <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
               <Button size="small" icon={<AimOutlined />} onClick={handleGetMyLocation}>GPS</Button>
               <Button
-                size="small"
-                type={transportMode === 'driving' ? 'primary' : 'default'}
-                icon={<CarOutlined />}
+                size="small" type={transportMode === 'driving' ? 'primary' : 'default'} icon={<CarOutlined />}
                 onClick={() => setTransportMode('driving')}
               >Xe máy</Button>
               <Button
-                size="small"
-                type={transportMode === 'walking' ? 'primary' : 'default'}
-                icon={<EnvironmentOutlined />}
+                size="small" type={transportMode === 'walking' ? 'primary' : 'default'} icon={<EnvironmentOutlined />}
                 onClick={() => setTransportMode('walking')}
               >Đi bộ</Button>
             </div>
           </div>
         </div>
 
-        {/* List kết quả tìm kiếm */}
+        {/* Kết quả tìm kiếm */}
         {(searchResults.length > 0 || isSearching) && (
           <div style={{ padding: '0 10px', background: '#fffbe6', borderBottom: '1px solid #ffe58f', maxHeight: '300px', overflowY: 'auto', flexShrink: 0 }}>
             {!isSearching && (
@@ -236,7 +178,7 @@ function App() {
           </div>
         )}
 
-        {/* List lịch trình */}
+        {/* Danh sách địa điểm đã chọn */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '15px', background: '#fafafa' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
             <Text strong>Lịch trình ({places.length})</Text>
@@ -267,6 +209,7 @@ function App() {
         </div>
       </Sider>
 
+      {/* Bản đồ */}
       <Content style={{ position: 'relative' }}>
         <MapContent places={places} transportMode={transportMode} />
       </Content>

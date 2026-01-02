@@ -1,6 +1,9 @@
-﻿using HanoGo.Service.Abstractions;
+﻿using HanoGo.Data.Entities;
+using HanoGo.Service.Abstractions;
 using HanoGo.Service.Dtos;
 using Microsoft.AspNetCore.Mvc;
+using System;
+using System.Threading.Tasks;
 
 namespace HanoGo.API.Controllers
 {
@@ -15,23 +18,46 @@ namespace HanoGo.API.Controllers
             _authService = authService;
         }
 
+        // API: api/Auth/login
         [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginDto dto)
+        public async Task<IActionResult> Login([FromBody] LoginDto request)
         {
-            var user = await _authService.LoginAsync(dto);
+            var user = await _authService.LoginAsync(request);
             if (user == null)
             {
-                return Unauthorized(new { message = "Sai tài khoản hoặc mật khẩu!" });
+                return Unauthorized("Sai tài khoản hoặc mật khẩu");
             }
-
-            // Trả về thông tin User (để Frontend lưu lại ID)
-            return Ok(new
-            {
-                id = user.Id,
-                username = user.Username,
-                role = user.Role,
-                isPremium = user.IsPremium
-            });
+            return Ok(user);
         }
+
+        // API: api/Auth/register
+        [HttpPost("register")]
+        public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+        {
+            try
+            {
+                // Gọi service đăng ký
+                var user = await _authService.RegisterAsync(
+                    request.Username,
+                    request.Password,
+                    request.Email ?? request.Username + "@hanogo.com", // Fallback email nếu null
+                    request.FullName
+                );
+                return Ok(user);
+            }
+            catch (Exception ex)
+            {
+                return BadRequest(ex.Message); // Trả lỗi (ví dụ: Trùng username)
+            }
+        }
+    }
+
+    // Class nhận dữ liệu từ Frontend gửi lên
+    public class RegisterRequest
+    {
+        public string Username { get; set; }
+        public string Password { get; set; }
+        public string? Email { get; set; }
+        public string FullName { get; set; }
     }
 }

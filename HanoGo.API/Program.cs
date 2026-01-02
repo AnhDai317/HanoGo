@@ -24,8 +24,7 @@ builder.Services.AddCors(options =>
 // 2. DATABASE
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<TravelDbContext>(options =>
-    options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
-
+   options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 0))));
 // 3. REPOSITORIES
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
