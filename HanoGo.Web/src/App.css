@@ -1,0 +1,198 @@
+import { useEffect, useState, useRef } from 'react';
+import axios from 'axios';
+import { Layout, Menu, Card, Typography, Spin, Button, Input, List, message } from 'antd';
+import {
+  SearchOutlined, PlusOutlined, EnvironmentOutlined,
+  GlobalOutlined, UnorderedListOutlined, LogoutOutlined,
+  AimOutlined, CarOutlined, AliwangwangOutlined,
+  ThunderboltOutlined, HomeOutlined
+} from '@ant-design/icons';
+
+import MapContent from './components/MapContent';
+import LoginPage from './components/LoginPage';
+import HomePage from './components/HomePage';
+import DestinationDetails from './components/DestinationDetails'; // Import trang chi tiết mới
+
+const { Sider, Content } = Layout;
+const { Text, Title } = Typography;
+
+const API_BASE_URL = 'https://localhost:7236/api';
+
+function App() {
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // View mode: 'home' | 'login' | 'planner' | 'details' <--- THÊM 'details'
+  const [currentView, setCurrentView] = useState('home');
+  const [selectedPlace, setSelectedPlace] = useState(null); // <--- THÊM state lưu địa điểm đang xem
+
+  const [places, setPlaces] = useState([]);
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [transportMode, setTransportMode] = useState('driving');
+  const [searchText, setSearchText] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+  const typingTimeoutRef = useRef(null);
+
+  // ... (Phần useEffect fetch data giữ nguyên) ...
+  useEffect(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser));
+    }
+    fetchInitialPlaces();
+  }, []);
+
+  const fetchInitialPlaces = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/places`);
+      setPlaces(response.data);
+    } catch (error) { console.error(error); }
+    finally { setLoading(false); }
+  };
+
+  // --- LOGIC ĐIỀU HƯỚNG ---
+  const handleStartPlanning = () => {
+    if (currentUser) {
+      setCurrentView('planner');
+    } else {
+      message.info("Vui lòng đăng nhập để bắt đầu!");
+      setCurrentView('login');
+    }
+  };
+
+  const handleLoginSuccess = (user) => {
+    setCurrentUser(user);
+    setCurrentView('planner');
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('currentUser');
+    setCurrentUser(null);
+    setCurrentView('home');
+    message.success("Đã đăng xuất!");
+  };
+
+  // --- XỬ LÝ CLICK VÀO ĐỊA ĐIỂM TỪ HOME ---
+  const handlePlaceClick = (place) => {
+    setSelectedPlace(place);
+    setCurrentView('details'); // Chuyển sang view chi tiết
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleBackToHome = () => {
+    setSelectedPlace(null);
+    setCurrentView('home');
+  };
+
+  const handleAddToItineraryFromDetails = (place) => {
+      // Logic thêm vào planner (đơn giản là chuyển view và báo user)
+      if(!currentUser) {
+          message.warning("Vui lòng đăng nhập để thêm vào lịch trình!");
+          setCurrentView('login');
+          return;
+      }
+      message.success(`Đã thêm ${place.name} vào danh sách chờ!`);
+      // Ở đây bạn có thể update state places của planner nếu muốn
+      setCurrentView('planner');
+  };
+
+  // ... (Các hàm logic search, optimize cũ giữ nguyên) ...
+  const performSearchAndLog = async (query) => { /* ...code cũ... */ };
+  const handleTyping = (e) => { /* ...code cũ... */ };
+  const handlePressEnter = () => { /* ...code cũ... */ };
+  const addToSchedule = async (item) => { /* ...code cũ... */ };
+  const handleOptimize = async () => { /* ...code cũ... */ };
+  const handleGetMyLocation = () => { /* ...code cũ... */ };
+
+
+  // --- RENDER GIAO DIỆN ---
+
+  // 1. MÀN HÌNH LOGIN
+  if (currentView === 'login') {
+    return (
+      <LoginPage
+        onLoginSuccess={handleLoginSuccess}
+        onCancel={() => setCurrentView('home')}
+      />
+    );
+  }
+
+  // 2. MÀN HÌNH CHI TIẾT ĐỊA ĐIỂM (MỚI)
+  if (currentView === 'details') {
+      return (
+          <DestinationDetails 
+            place={selectedPlace} 
+            onBack={handleBackToHome}
+            onAddToItinerary={handleAddToItineraryFromDetails}
+          />
+      );
+  }
+
+  // 3. MÀN HÌNH HOME
+  if (currentView === 'home') {
+    return (
+      <HomePage
+        user={currentUser}
+        places={places} // Truyền data thật xuống
+        onStart={handleStartPlanning}
+        onLogin={() => setCurrentView('login')}
+        onLogout={handleLogout}
+        onPlaceClick={handlePlaceClick} // Truyền hàm xử lý click
+      />
+    );
+  }
+
+  // 4. MÀN HÌNH PLANNER (Ứng dụng chính)
+  return (
+    <Layout style={{ height: '100vh' }}>
+       {/* ... (Giữ nguyên code phần Layout Planner cũ của bạn) ... */}
+       <Sider width={60} theme="dark" style={{ textAlign: 'center', paddingTop: 20 }}>
+        <GlobalOutlined style={{ fontSize: '24px', color: '#1890ff', marginBottom: 30 }} />
+        <Menu theme="dark" mode="vertical" defaultSelectedKeys={['2']} items={[
+          { key: '1', icon: <HomeOutlined />, label: 'Home', onClick: () => setCurrentView('home') },
+          { key: '2', icon: <UnorderedListOutlined />, label: 'Plan' },
+        ]} />
+        <Button type="text" icon={<LogoutOutlined style={{ color: 'white' }} />} onClick={handleLogout} style={{ position: 'absolute', bottom: 20, left: 14 }} />
+      </Sider>
+
+      {/* Code Sidebar danh sách địa điểm (GIỮ NGUYÊN CODE CŨ) */}
+      <Sider width={380} theme="light" style={{ borderRight: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '20px', borderBottom: '1px solid #f0f0f0', flexShrink: 0 }}>
+          <Title level={4} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AliwangwangOutlined style={{ color: '#1890ff' }} /> HanoGo Planner
+          </Title>
+          {currentUser && <Text type="secondary" style={{ fontSize: 12 }}>User: {currentUser.fullName}</Text>}
+
+          <div style={{ marginTop: 15 }}>
+            <Input
+              prefix={<SearchOutlined style={{ color: '#bfbfbf' }} />}
+              placeholder="Tìm địa điểm..." size="large"
+              // ... props cũ ...
+              onChange={handleTyping} onPressEnter={handlePressEnter} 
+            />
+             {/* ... buttons ... */}
+          </div>
+        </div>
+        
+        {/* ... List Search Results & Selected Places (Code cũ) ... */}
+         <div style={{ flex: 1, overflowY: 'auto', padding: '15px', background: '#fafafa' }}>
+             {/* ... map places ... */}
+             {places.map((place, index) => (
+                  <Card key={place.id} size="small" style={{marginBottom: 10}}>
+                      <div style={{display:'flex', gap: 10}}>
+                          <img src={place.imageUrl || "https://via.placeholder.com/50"} style={{width:50, height:50, objectFit:'cover'}} />
+                          <div><b>{place.name}</b><br/><small>{place.category}</small></div>
+                      </div>
+                  </Card>
+             ))}
+         </div>
+      </Sider>
+
+      <Content style={{ position: 'relative' }}>
+        <MapContent places={places} transportMode={transportMode} />
+      </Content>
+    </Layout>
+  );
+}
+
+export default App;

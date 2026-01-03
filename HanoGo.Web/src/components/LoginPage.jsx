@@ -1,17 +1,20 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Form, Input, Button, Card, Typography, message, Alert } from 'antd';
-import { UserOutlined, LockOutlined, HomeOutlined, IdcardOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, HomeOutlined } from '@ant-design/icons'; // Đã xóa IdcardOutlined
 
 const { Title, Text } = Typography;
 
 const LoginPage = ({ onLoginSuccess, onCancel }) => {
     // State để kiểm soát đang ở chế độ Đăng nhập hay Đăng ký
     const [isRegisterMode, setIsRegisterMode] = useState(false);
-
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
-    const [form] = Form.useForm(); // Hook để reset form
+    const [form] = Form.useForm();
+
+    // SỬA 1: Dùng Port 5163 (HTTP) để tránh lỗi SSL/Connection Refused
+    // Đây là port có trong launchSettings.json profile "http"
+    const API_URL = 'http://localhost:5163/api/auth';
 
     const onFinish = async (values) => {
         setLoading(true);
@@ -20,28 +23,30 @@ const LoginPage = ({ onLoginSuccess, onCancel }) => {
         try {
             if (isRegisterMode) {
                 // --- LOGIC ĐĂNG KÝ ---
-                // Kiểm tra password confirm (nếu muốn kỹ hơn thì validate ở rule)
                 if (values.password !== values.confirmPassword) {
                     setErrorMsg("Mật khẩu xác nhận không khớp!");
                     setLoading(false);
                     return;
                 }
 
-                // Gọi API Register
+                // SỬA 2: Xóa fullName và tự sinh email
                 const registerPayload = {
                     username: values.username,
                     password: values.password,
-                    fullName: values.fullName
+                    // Database bắt buộc có Email, tự sinh nếu form không nhập
+                    email: `${values.username}@gmail.com`
                 };
 
-                await axios.post('https://localhost:7236/api/auth/register', registerPayload);
+                // Gọi API Register
+                await axios.post(`${API_URL}/register`, registerPayload);
 
                 message.success("Đăng ký thành công! Hãy đăng nhập.");
-                setIsRegisterMode(false); // Chuyển về form đăng nhập
+                setIsRegisterMode(false);
                 form.resetFields();
             } else {
                 // --- LOGIC ĐĂNG NHẬP ---
-                const response = await axios.post('https://localhost:7236/api/auth/login', values);
+                // Gọi API Login
+                const response = await axios.post(`${API_URL}/login`, values);
                 const userData = response.data;
 
                 localStorage.setItem('currentUser', JSON.stringify(userData));
@@ -50,10 +55,13 @@ const LoginPage = ({ onLoginSuccess, onCancel }) => {
             }
         } catch (error) {
             console.error(error);
+            // Xử lý thông báo lỗi chi tiết từ Backend gửi về
             if (isRegisterMode) {
-                setErrorMsg(error.response?.data || "Đăng ký thất bại. Có thể Username đã tồn tại.");
+                const serverMsg = error.response?.data || "Đăng ký thất bại.";
+                // Nếu server trả về object lỗi (ít gặp với string return), convert sang string
+                setErrorMsg(typeof serverMsg === 'string' ? serverMsg : JSON.stringify(serverMsg));
             } else {
-                setErrorMsg("Sai tài khoản hoặc mật khẩu!");
+                setErrorMsg("Sai tài khoản hoặc mật khẩu, hoặc server chưa chạy!");
             }
         } finally {
             setLoading(false);
@@ -84,15 +92,7 @@ const LoginPage = ({ onLoginSuccess, onCancel }) => {
                     layout="vertical"
                     size="large"
                 >
-                    {/* TRƯỜNG HỌ TÊN (CHỈ HIỆN KHI ĐĂNG KÝ) */}
-                    {isRegisterMode && (
-                        <Form.Item
-                            name="fullName"
-                            rules={[{ required: true, message: 'Vui lòng nhập họ tên!' }]}
-                        >
-                            <Input prefix={<IdcardOutlined />} placeholder="Họ và tên hiển thị" />
-                        </Form.Item>
-                    )}
+                    {/* SỬA 3: Đã xóa Form.Item fullName tại đây */}
 
                     <Form.Item name="username" rules={[{ required: true, message: 'Vui lòng nhập Username!' }]}>
                         <Input prefix={<UserOutlined />} placeholder="Tên đăng nhập" />
@@ -122,14 +122,15 @@ const LoginPage = ({ onLoginSuccess, onCancel }) => {
                     </Form.Item>
                 </Form>
 
-                {/* NÚT CHUYỂN ĐỔI CHẾ ĐỘ */}
                 <div style={{ textAlign: 'center', marginBottom: 15 }}>
                     <Text>
                         {isRegisterMode ? "Đã có tài khoản? " : "Chưa có tài khoản? "}
                     </Text>
                     <a
+                        href="#"
                         style={{ fontWeight: 'bold', color: '#1890ff' }}
-                        onClick={() => {
+                        onClick={(e) => {
+                            e.preventDefault();
                             setIsRegisterMode(!isRegisterMode);
                             setErrorMsg('');
                             form.resetFields();

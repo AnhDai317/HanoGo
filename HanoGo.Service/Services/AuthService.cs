@@ -2,7 +2,7 @@
 using HanoGo.Data.Entities;
 using HanoGo.Service.Abstractions;
 using HanoGo.Service.Dtos;
-using Microsoft.EntityFrameworkCore; // Nhớ dòng này để dùng .FirstOrDefaultAsync
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.Threading.Tasks;
 
@@ -26,14 +26,14 @@ namespace HanoGo.Service.Services
 
             if (user == null) return null;
 
-            // 2. Kiểm tra mật khẩu (Lưu ý: Thực tế nên mã hóa, ở đây so sánh text thường theo DB của bạn)
+            // 2. Kiểm tra mật khẩu (So sánh plain text theo database của bạn)
             if (user.PasswordHash != loginDto.Password) return null;
 
             return user;
         }
 
-        // --- ĐĂNG KÝ ---
-        public async Task<User> RegisterAsync(string username, string password, string email, string fullName)
+        // --- ĐĂNG KÝ (Đã sửa) ---
+        public async Task<User> RegisterAsync(string username, string password, string email)
         {
             // 1. Kiểm tra username đã tồn tại chưa
             var exists = await _context.Users.AnyAsync(u => u.Username == username);
@@ -42,17 +42,16 @@ namespace HanoGo.Service.Services
                 throw new Exception("Tài khoản đã tồn tại!");
             }
 
-            // 2. Tạo User mới
+            // 2. Tạo User mới (Khớp với bảng Users trong Database)
             var newUser = new User
             {
                 Username = username,
-                PasswordHash = password, // Lưu pass vào cột PasswordHash
-                Email = email,           // Cột Email (bắt buộc trong DB của bạn)
-                Role = 1,                // Mặc định Role = 1 (User thường)
+                PasswordHash = password, // Lưu ý: Nên mã hóa password nếu có thể sau này
+                Email = email,
+                Role = 0,                // 0: Customer (theo SQL script của bạn)
                 IsPremium = false,
                 CreatedAt = DateTime.Now
-                // Lưu ý: User.cs của bạn chưa có cột FullName, nếu DB chưa có thì bỏ qua dòng gán FullName
-                // Hoặc nếu bạn muốn lưu tạm vào đâu đó thì tùy chỉnh. 
+                // Không còn dòng FullName = ...
             };
 
             // 3. Lưu vào DB

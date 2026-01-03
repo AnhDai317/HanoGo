@@ -36,28 +36,27 @@ namespace HanoGo.API.Controllers
         {
             try
             {
-                // Gọi service đăng ký
+                // Gọi service đăng ký (chỉ truyền 3 tham số)
                 var user = await _authService.RegisterAsync(
                     request.Username,
                     request.Password,
-                    request.Email ?? request.Username + "@hanogo.com", // Fallback email nếu null
-                    request.FullName
+                    // Nếu client không gửi email, tự sinh email giả định để không lỗi DB
+                    request.Email ?? request.Username + "@hanogo.com"
                 );
                 return Ok(user);
             }
             catch (Exception ex)
             {
-                return BadRequest(ex.Message); // Trả lỗi (ví dụ: Trùng username)
+                return BadRequest(ex.Message); // Ví dụ: "Tài khoản đã tồn tại!"
             }
         }
     }
 
-    // Class nhận dữ liệu từ Frontend gửi lên
+    // Class DTO nhận dữ liệu (Đã xóa FullName)
     public class RegisterRequest
     {
         public string Username { get; set; }
         public string Password { get; set; }
         public string? Email { get; set; }
-        public string FullName { get; set; }
     }
 }
